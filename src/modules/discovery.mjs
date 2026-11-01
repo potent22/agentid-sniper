@@ -33,6 +33,8 @@ export function createDiscovery(dependencies) {
     wa,
     fetchImpl
   } = dependencies;
+    if (S.agentsV !== 2) { for (const entry of Object.values(S.paid || {})) { delete entry.agents; delete entry.heatAt; } S.agentsV = 2; }
+
   const DEPLOYERS = ['0x4e59b44847b379578588920ca78fbf26c0b4956c', '0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed', '0x0000000000ffe8b47b3e2130213b802212439497', '0x914d7fec6aac8cd542e72bca78b30650d45643d7'];
   const WINNERS = ['0x8e6442663a4f8c50b6132c68d42a30e7dfe4ae15', '0x04fd77c2f97d044b3c719282fd0a0568f4254afa', '0x415aac3e46264c046d103c994a1da71f05c547f9', '0x171f264f938d55d968afc5d6b133c4157a61f05f'];
   let SMART = new Set(S.smart || []);
@@ -601,7 +603,6 @@ export function createDiscovery(dependencies) {
   const agentCache = new Map();
   async function heatOf(c, P) {
     // 算熱度：最近約 2.5 小時有幾個不同的 Agent ID 錢包參與鑄造，其中最近 3 分鐘幾個
-    if (S.agentsV !== 2) { for (const entry of Object.values(S.paid || {})) { delete entry.agents; delete entry.heatAt; } S.agentsV = 2; }
     const head = parseInt(await rpc('eth_blockNumber', []), 16);
     let tok = '';
     const tr = await call(c, '0xfc0c546a');

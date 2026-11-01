@@ -23,6 +23,7 @@ test('heat counts verified transaction senders rather than airdrop recipients an
   const discovery = createDiscovery({ ...values, S, WALLETS: [], scheduler: {}, call: async () => '0x',
     rpc: async method => method === 'eth_blockNumber' ? '0x10000' : [{ transactionHash: hash, topics: [values.T_TRANSFER, '0x' + recipient.slice(2).padStart(64,'0')], blockNumber: '0xffff' }],
     rpcBatch: async requests => requests.map(q => q.method === 'eth_getTransactionByHash' ? { hash, from, blockNumber: '0xffff' } : '0x' + '1'.padStart(64,'0')) });
+  assert.equal(P.agents, undefined, 'old recipient counts are cleared before scheduling any mint');
   await discovery.heatOf(c, P); assert.equal(P.agents, 1); assert.equal(S.agentsV, 2);
 });
 test('paid limit detection supports per-transaction caps and rejects unavailable evidence', async () => {
