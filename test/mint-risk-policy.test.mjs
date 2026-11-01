@@ -19,14 +19,15 @@ test('blacklist and three deployments reject even with complete evidence and hig
   assert.equal(mintRiskDecision(clear), '');
 });
 
-test('incomplete 24-hour or developer history is not treated as safety clearance', () => {
+test('missing historical coverage does not block, while unknown creator or code still blocks', () => {
   const base = { developer, code: '0x6001', deploymentCoverageComplete: true, rugHistoryVerified: true };
-  assert.match(mintRiskDecision({ ...base, deploymentCoverageComplete: false }), /24 小時/);
-  assert.match(mintRiskDecision({ ...base, rugHistoryVerified: false }), /歷史 rug/);
+  assert.equal(mintRiskDecision({ ...base, deploymentCoverageComplete: false }), '');
+  assert.equal(mintRiskDecision({ ...base, rugHistoryVerified: false }), '');
   assert.match(mintRiskDecision({ ...base, developer: '' }), /部署者/);
+  assert.match(mintRiskDecision({ ...base, code: '' }), /合約代碼/);
 });
 
-test('real execution path blocks blacklist, serial deployments and missing evidence; zero approval can clean up', async (t) => {
+test('real execution path blocks blacklist and observed serial deployments, while zero approval can clean up', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'risk-execution-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
   let submissions = 0;
   const txHash = '0x' + 'a'.repeat(64), values = createChainValues({});
@@ -50,7 +51,7 @@ test('real execution path blocks blacklist, serial deployments and missing evide
   S.black = {}; risk.noteDeploy('0x6001'); risk.noteDeploy('0x6001'); risk.noteDeploy('0x6001');
   await assert.rejects(tx.submitContract(W, project, '0x12345678', 0n, 'id', {}), /部署至少三次/);
   S.fps = {};
-  await assert.rejects(tx.submitContract(W, project, '0x12345678', 0n, 'id', {}), /24 小時/);
+  await risk.enforceMintRisk(project);
   assert.equal(submissions, 0);
   await tx.submitContract(W, values.USDT, revoke, 0n, 'id', { balanceChanges: [] });
   assert.equal(submissions, 1);

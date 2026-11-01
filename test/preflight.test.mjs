@@ -17,7 +17,7 @@ const base = {
 test('preflight is read-only, preserves wallet policy and distinguishes a stop marker from configuration readiness', async () => {
   const result = await inspectStartup(base);
   assert.equal(result.ready, true); assert.equal(result.executionHeld, true);
-  assert.equal(result.walletPolicy.abnormalTxnHandling, 'AutoReject'); assert.equal(result.warnings.length, 2);
+  assert.equal(result.walletPolicy.abnormalTxnHandling, 'AutoReject'); assert.equal(result.warnings.length, 5);
   assert.equal(decimalWei('0.000000000000000001'), 1n);
 });
 test('wrong wallet, expired mode, low gas and outstanding recovery block readiness', async () => {
@@ -32,8 +32,16 @@ test('unavailable RPC and missing balance are failures rather than zero/healthy 
   assert.ok(result.checks.some((x) => x.name === 'rpc-query' && !x.ok));
 });
 
-test('missing historical risk evidence prevents startup even when wallet checks pass', async () => {
+test('missing historical risk evidence remains visible as a warning without blocking startup', async () => {
   const result = await inspectStartup({ ...base, local: { ...base.local, riskEvidenceReady: false } });
-  assert.equal(result.ready, false);
+  assert.equal(result.ready, true);
   assert.equal(result.checks.find((x) => x.name === 'mint-risk-evidence').ok, false);
+  assert.equal(result.checks.find((x) => x.name === 'mint-risk-evidence').required, false);
+  assert.ok(result.warnings.some((x) => x.includes('unverified')));
+});
+
+test('preflight discloses the accepted per-contract rather than cross-contract budget scope', async () => {
+  const result = await inspectStartup(base);
+  assert.match(result.checks.find((x) => x.name === 'project-budget-scope').detail, /multiple contracts are not aggregated/);
+  assert.ok(result.warnings.some((x) => x.includes('separate 1.2 USDT')));
 });

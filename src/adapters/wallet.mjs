@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { NotSubmittedError } from '../domain/errors.mjs';
 const mutation = (args) => ['contract-call execute', 'sign-message execute', 'market-order swap', 'approvals revoke', 'auth signin', 'auth verify', 'wallet send'].includes(args.slice(0, 2).join(' '));
 const queries = new Set(['contract-call preview', 'market-order list', 'approvals list', 'wallet status', 'wallet settings', 'wallet address', 'wallet agent-id', 'wallet balance']);
 export function walletView(gateway, { authentication = false } = {}) {
@@ -21,6 +22,15 @@ export function createWalletGateway({ wallets, root, activity, executeFile = exe
       const command = wallet.bawDir ? process.execPath : executable;
       const input = wallet.bawDir ? [join(root, wallet.bawPkg || 'baw2pkg', 'node_modules', '@binance', 'agentic-wallet', 'dist', 'index.js'), ...args, '--json'] : [...args, '--json'];
       const env = wallet.bawDir ? { ...environment, BINANCE_BAW_DIR: join(root, wallet.bawDir), BINANCE_INSTANCE_ID: wallet.instanceId || wallet.name } : environment;
+      if (['contract-call execute', 'market-order swap'].includes(key)) {
+        const prefix = wallet.bawDir ? input.slice(0, 1) : [];
+        const identity = await activity.track(new Promise((resolve) => executeFile(command, [...prefix, 'wallet', 'address', '--json'], { shell: false, env, windowsHide: true, timeout, maxBuffer: 4 << 20 }, (error, stdout) => {
+          try { resolve(error ? null : JSON.parse(String(stdout).slice(String(stdout).indexOf('{')))); } catch { resolve(null); }
+        })));
+        const actual = identity?.success && identity.data?.addresses?.find((a) => String(a.binanceChainId) === '56')?.address;
+        if (typeof actual !== 'string' || actual.toLowerCase() !== wallet.address.toLowerCase()) throw new NotSubmittedError('Wallet identity unavailable or changed; no transaction submitted');
+        activity.assertCanSend();
+      }
       return activity.track(new Promise((resolve) => executeFile(command, input, { shell: false, env, windowsHide: true, timeout, maxBuffer: 4 << 20 }, (error, stdout, stderr) => {
         const text = String(stdout || stderr || error?.message || ''); let parsed = null;
         try { parsed = JSON.parse(text.slice(text.indexOf('{'))); } catch { /* Not an authenticated successful response. */ }

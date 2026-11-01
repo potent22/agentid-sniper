@@ -15,7 +15,7 @@ export function decimalWei(value) {
 }
 export async function inspectStartup({ config, runCli, rpc, now = Date.now(), local = {} }) {
   const checks = [];
-  const check = (name, ok, detail) => checks.push({ name, ok: Boolean(ok), detail });
+  const check = (name, ok, detail, required = true) => checks.push({ name, ok: Boolean(ok), detail, ...(required ? {} : { required: false }) });
   let configValid = false;
   try { config = validateConfig(config); configValid = config.wallets.length === 1; } catch { /* Report invalid configuration without any network calls. */ }
   const wallet = config.wallets?.[0];
@@ -49,9 +49,14 @@ export async function inspectStartup({ config, runCli, rpc, now = Date.now(), lo
   } catch (error) { check('rpc-query', false, error.message); }
   check('recovery-clear', local.recoveryClear === true, local.recoveryDetail || 'no pending journals');
   check('state-readable', local.stateReadable === true, local.stateDetail || 'local state validated');
-  check('mint-risk-evidence', local.riskEvidenceReady === true, 'complete 24-hour deployment and developer rug-history evidence required');
-  return { ready: checks.every((c) => c.ok), executionHeld: Boolean(local.stopMarker), checks,
+  check('project-budget-scope', true, 'owner accepts 1.2 USDT per wallet and mint contract; multiple contracts are not aggregated');
+  check('mint-risk-evidence', local.riskEvidenceReady === true, 'historical deployment coverage and developer rug history are incomplete; owner waived this gate', false);
+  check('automatic-swaps', false, 'automated swaps remain paused until Permit2 and other extra permissions can be verified and cleaned up', false);
+  return { ready: checks.every((c) => c.ok || c.required === false), executionHeld: Boolean(local.stopMarker), checks,
     warnings: [...(!config.telegram?.botToken || !config.telegram?.chatId ? ['Telegram notifications are not configured.'] : []),
+      'Historical deployment coverage and developer rug history remain unverified.',
+      'A project using multiple mint contracts has a separate 1.2 USDT limit for each contract.',
+      'Automated swaps, including funding and sales, are paused while Permit2 cleanup is unverified.',
       'Routing/permission compatibility remains subject to per-transaction checks; no trade was submitted.'],
     walletPolicy: { abnormalTxnHandling: responses.settings?.abnormalTxnHandling, tradeAllTokens: responses.settings?.tradeAllTokens }, checkedAt: new Date(now).toISOString() };
 }

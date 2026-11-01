@@ -25,7 +25,7 @@ flowchart TD
 | `src/modules/transactions.mjs` | 唯一资金执行服务：预算、钱包串行、回执、持仓记账、授权清理和恢复 |
 | `src/modules/discovery.mjs`、`contracts.mjs` | 区块、事件、合约查询和候选发现 |
 | `src/modules/minting.mjs`、`portfolio.mjs` | 原有铸造及卖出策略，调用交易服务，不直接发送 |
-| `src/modules/project-risk.mjs` | 合约、开发者及证据门槛；证据不足继续拒绝 |
+| `src/modules/project-risk.mjs` | 合约、开发者及已知黑名单和已观测同款部署拦截；完整历史尚未接入 |
 | `src/modules/rpc.mjs`、`market-data.mjs` | 可注入网络传输的 RPC 与行情查询 |
 | `src/modules/notifications.mjs`、`reports.mjs`、`commands.mjs`、`account.mjs` | 通知、报表、命令、登录状态；撤销额度交给交易服务验证 |
 | `src/runtime/` | 单实例锁、调度、在途任务、停止、数据根绑定 |
@@ -39,6 +39,8 @@ flowchart TD
 - 先持久化预算/恢复记录，再调用钱包。返回交易哈希不等于完成；必须核对回执和链上资产，再记账。
 - 只有本地 `NotSubmittedError` 证明没有调用发送接口，才可释放预留。断网、CLI 报错、缺少哈希都按未知结果保留。
 - 同一钱包的交易工作流串行；清理失败阻止下一次授权。停机期间不新发撤销交易，清理记录保留到重启。
+- 当前没有完整的 Permit2 内部授权清理验证；交易服务在创建任务或发单前拒绝所有新自动兑换。历史未完成兑换的恢复和清理仍可运行。
+- 合约执行前会再次只读核对币安钱包当前 BSC 地址，地址不匹配或无法读取时不发单。
 - `pendingOperations()` 是旧账本的统一状态视图，并非新的事务数据库。金额和交易标记仍由已验证的 JSON 模块保存。
 
 ## 仍保留的兼容边界

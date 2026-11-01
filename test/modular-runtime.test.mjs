@@ -55,15 +55,41 @@ test('configuration and preflight share the 1.2U ceiling; raw boundary amounts n
 test('wallet arguments are literal; read-only capabilities and the shutdown send gate cannot mutate', async () => {
   const activity = new Activity(), calls = [];
   const gateway = createWalletGateway({ wallets: configuration().wallets, root: '/unused', activity,
-    executeFile: (command, args, options, cb) => { calls.push({ command, args, options }); cb(null, '{"success":true}', ''); } });
+    executeFile: (command, args, options, cb) => { calls.push({ command, args, options }); cb(null, JSON.stringify(args[0] === 'wallet' && args[1] === 'address' ? { success: true, data: { addresses: [{ binanceChainId: '56', address }] } } : { success: true }), ''); } });
   await gateway.call(address, ['contract-call', 'execute', '--requestId', 'literal;$(do-not-execute)']);
-  assert.equal(calls[0].options.shell, false); assert.equal(calls[0].args[3], 'literal;$(do-not-execute)');
+  assert.equal(calls[1].options.shell, false); assert.equal(calls[1].args[3], 'literal;$(do-not-execute)');
   assert.throws(() => walletView(gateway).call(address, ['market-order', 'swap']), /capability denied/);
   await assert.rejects(gateway.call(project, ['wallet', 'status']), /invalid wallet/);
   activity.stop();
   await assert.rejects(gateway.call(address, ['contract-call', 'execute', '--requestId', 'x']), NotSubmittedError);
-  assert.equal(calls.length, 1);
-  await walletView(gateway).call(address, ['wallet', 'status']); assert.equal(calls.length, 2);
+  assert.equal(calls.length, 2);
+  await walletView(gateway).call(address, ['wallet', 'status']); assert.equal(calls.length, 3);
+});
+
+test('a wallet identity mismatch stops before contract submission', async () => {
+  const activity = new Activity(), calls = [];
+  const gateway = createWalletGateway({ wallets: configuration().wallets, root: '/unused', activity,
+    executeFile: (_command, args, _options, cb) => { calls.push(args.slice(0, 2).join(' ')); cb(null, JSON.stringify({ success: true, data: { addresses: [{ binanceChainId: '56', address: project }] } }), ''); } });
+  await assert.rejects(gateway.call(address, ['contract-call', 'execute', '--requestId', 'test']), NotSubmittedError);
+  assert.deepEqual(calls, ['wallet address']);
+});
+
+test('a stop during the identity query prevents the subsequent send', async () => {
+  const activity = new Activity(), calls = [];
+  const gateway = createWalletGateway({ wallets: configuration().wallets, root: '/unused', activity,
+    executeFile: (_command, args, _options, cb) => {
+      calls.push(args.slice(0, 2).join(' ')); activity.stop();
+      cb(null, JSON.stringify({ success: true, data: { addresses: [{ binanceChainId: '56', address }] } }), '');
+    } });
+  await assert.rejects(gateway.call(address, ['contract-call', 'execute', '--requestId', 'test']), NotSubmittedError);
+  assert.deepEqual(calls, ['wallet address']);
+});
+
+test('unverified Permit2 cleanup blocks a swap before creating a recovery job or sending', async (t) => {
+  const root = temporary(t), journal = new RecoveryJournal(join(root, 'recovery.json'));
+  const tx = createTransactions({ RECOVERY: journal, PROJECT_BUDGET: new ProjectBudget(join(root, 'budget.json'), 1200000n), activity: new Activity(), wallet: { call: forbidden } });
+  await assert.rejects(tx.swapConfirmed({ addr: address }, ['market-order', 'swap']), /Permit2/);
+  assert.equal(journal.get(address), null);
 });
 
 test('stop between preview and execution releases only the proven-unsent reservation', async (t) => {

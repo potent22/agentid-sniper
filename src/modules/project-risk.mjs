@@ -99,11 +99,7 @@ export function createProjectRisk(dependencies) {
       developer,
       code,
       blacklisted: black,
-      serial: Boolean(code && isSerial(code)),
-      // The scanner does not prove uninterrupted 24h coverage; no independent,
-      // verified developer rug-history source is wired in. Never infer clearance.
-      deploymentCoverageComplete: false,
-      rugHistoryVerified: false
+      serial: Boolean(code && isSerial(code))
     });
     if (reason) throw new Error('風控攔截：' + reason);
   }

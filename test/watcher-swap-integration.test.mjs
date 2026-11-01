@@ -23,7 +23,7 @@ function fixture(t, sale = false) {
   let sold = 100n;
   const order = { orderId: '123', chain: '56', fromToken: sale ? token : native, toToken: sale ? native : usdt, status: state, txHash, toTokenActualQty: '3.1', refund: sale ? [] : [{ amount: '0.0001', symbol: 'BNB' }] };
   const ctx = {
-    PROJECT_BUDGET: new ProjectBudget(join(dir, 'budget.json'), 5_000_000n),
+    PROJECT_BUDGET: new ProjectBudget(join(dir, 'budget.json'), 5_000_000n), assertSwapAllowed: async () => {},
     S: { tokens: {}, dyn: [] }, STATE: statePath, wa: (a) => a.slice(2).padStart(64, '0'),
     persistState: (path, data) => { if (failWrite && data.trades?.length) throw new Error('disk full'); writeState(path, data); },
     CONFIG: { timeZone: 'Asia/Shanghai' }, activity: new Activity(), enforceMintRisk: async () => {}, RECOVERY: journal, WALLET_LEASE: new WalletLease(), sleep: async () => {},

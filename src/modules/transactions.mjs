@@ -32,6 +32,12 @@ export function createTransactions(dependencies) {
     wa,
     wallet
   } = dependencies;
+  // Automated swaps may create Permit2-internal allowances that the current
+  // recovery journal cannot discover and verify. Keep them disabled until a
+  // route adapter can prove all permissions are cleaned up.
+  const assertSwapAllowed = dependencies.assertSwapAllowed || (async () => {
+    throw new Error('自动兑换暂停：尚不能核实 Permit2 等授权的完整清理');
+  });
   const persistState = dependencies.persistState || writeState;
   async function revokePermission(W, token, spender, type = 'approve') {
     if (type !== 'approve') throw new Error('Non-ERC20 permission cleanup requires a verified adapter');
@@ -234,6 +240,7 @@ export function createTransactions(dependencies) {
   async function swapConfirmed(W, args, metadata = {
     purpose: 'funding'
   }) {
+    await assertSwapAllowed({ wallet: W.addr, args, metadata });
     if (PROJECT_BUDGET.pendingEntries(W.addr).length) throw new Error('結果不明：合約交易仍待恢復，禁止兌換');
     activity.count++;
     try {
