@@ -13,7 +13,7 @@
   "timeZone": "Asia/Taipei",
   "paid": {
     "goPct": 0.8,
-    "maxUsd": 20,
+    "maxUsd": 1.2,
     "keepBnb": 0.006
   },
   "rules": {
