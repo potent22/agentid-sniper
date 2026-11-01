@@ -4,12 +4,11 @@ import { promisify } from 'node:util';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ProjectBudget } from './project-budget.mjs';
-import { RecoveryJournal } from './recovery-journal.mjs';
 import { writeState } from './execution-state.mjs';
+import { validateConfig } from './src/domain/config.mjs';
+import { inspectStore } from './src/runtime/store.mjs';
 const executeFile = promisify(execFile);
 const native = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-const addressPattern = /^0x[0-9a-f]{40}$/i;
 export function decimalWei(value) {
   if (typeof value !== 'string' || !/^\d+(\.\d{1,18})?$/.test(value)) throw new Error('invalid BNB amount');
   const [whole, part = ''] = value.split('.'); return BigInt(whole) * 10n ** 18n + BigInt(part.padEnd(18, '0'));
@@ -17,9 +16,10 @@ export function decimalWei(value) {
 export async function inspectStartup({ config, runCli, rpc, now = Date.now(), local = {} }) {
   const checks = [];
   const check = (name, ok, detail) => checks.push({ name, ok: Boolean(ok), detail });
+  let configValid = false;
+  try { config = validateConfig(config); configValid = config.wallets.length === 1; } catch { /* Report invalid configuration without any network calls. */ }
   const wallet = config.wallets?.[0];
-  check('configuration', config.wallets?.length === 1 && addressPattern.test(wallet?.address || '') && typeof wallet?.name === 'string'
-    && Number.isFinite(config.paid?.maxUsd) && config.paid.maxUsd > 0 && config.paid.maxUsd <= 1.2, 'one wallet; paid principal limit at most 1.2 USDT');
+  check('configuration', configValid, 'one wallet; paid principal limit at most 1.2 USDT');
   if (!checks[0].ok) return { ready: false, checks, executionHeld: Boolean(local.stopMarker) };
   const requests = [
     ['status', ['wallet', 'status']], ['address', ['wallet', 'address']], ['identity', ['wallet', 'agent-id']],
@@ -60,16 +60,10 @@ async function main() {
   const dir = dirname(fileURLToPath(import.meta.url)), config = JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8'));
   const local = { stopMarker: existsSync(join(dir, 'WATCH_STOP')), recoveryClear: false, stateReadable: false };
   try {
-    const address = config.wallets?.[0]?.address;
-    const budget = new ProjectBudget(join(dir, 'data', 'project_budget.json'), BigInt(Math.floor(Number(config.paid?.maxUsd) * 1e6)));
-    const journal = new RecoveryJournal(join(dir, 'data', 'recovery.json'));
-    local.recoveryClear = !budget.pendingEntries(address).length && !journal.get(address);
-  } catch (error) { local.recoveryDetail = error.message; }
-  try {
-    const path = join(dir, 'data', 'watch_state.json');
-    const state = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : { tokens: {} };
-    local.stateReadable = Boolean(state.tokens && typeof state.tokens === 'object' && !Array.isArray(state.tokens));
-  } catch (error) { local.stateDetail = error.message; }
+    const validated = validateConfig(config), { budget, recovery } = inspectStore(join(dir, 'data'), validated);
+    local.recoveryClear = !budget.pendingEntries(validated.wallets[0].address).length && !recovery.get(validated.wallets[0].address);
+    local.stateReadable = true;
+  } catch (error) { local.stateDetail = error.message; local.recoveryDetail = error.message; }
   const runCli = async (args) => JSON.parse((await executeFile('baw', [...args, '--json'], { timeout: 60000, maxBuffer: 4 << 20 })).stdout);
   const urls = config.rpcs?.length ? config.rpcs : ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.bnbchain.org'];
   const rpc = async (method, params) => {

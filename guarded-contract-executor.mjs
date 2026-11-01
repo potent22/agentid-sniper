@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { waitForReceipt } from './transaction-receipt.mjs';
+import { NotSubmittedError } from './src/domain/errors.mjs';
 
 export async function executeGuarded({ budget, wallet, project, ceiling, metadata = null, applyConfirmed = async () => {}, recordReceipt = async () => {}, recoverOnly = false, submit, rpc, sleep, attempts = 60 }) {
   // Reconcile a prior submission first. Never execute the current request in
@@ -24,7 +25,11 @@ export async function executeGuarded({ budget, wallet, project, ceiling, metadat
   budget.reserve(wallet, project, id, ceiling, metadata);
   let result;
   try { result = await submit(); }
-  catch { throw new Error('結果不明：送出發生錯誤，保留預算，禁止重送'); }
+  catch (error) {
+    // Only our local gateway can prove it never invoked the wallet CLI.
+    if (error instanceof NotSubmittedError) { budget.settle(wallet, project, id, 0n); throw error; }
+    throw new Error('結果不明：送出發生錯誤，保留預算，禁止重送');
+  }
   const txHash = result?.j?.data?.txHash;
   if (!/^0x[0-9a-f]{64}$/i.test(txHash || '')) throw new Error('結果不明：送出未取得有效交易雜湊，保留預算，禁止重送');
   budget.recordTx(wallet, project, id, txHash);

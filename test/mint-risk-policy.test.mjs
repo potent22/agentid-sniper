@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createProjectRisk } from '../src/modules/project-risk.mjs';
+import { createTransactions } from '../src/modules/transactions.mjs';
+import { createChainValues } from '../src/modules/chain-values.mjs';
+import { ProjectBudget } from '../project-budget.mjs';
+import { RecoveryJournal, WalletLease } from '../recovery-journal.mjs';
+import { Activity } from '../src/runtime/activity.mjs';
 import { mintRiskDecision } from '../mint-risk-policy.mjs';
 const project = '0x' + '2'.repeat(40), developer = '0x' + '3'.repeat(40), wallet = '0x' + '1'.repeat(40);
 
@@ -19,32 +26,32 @@ test('incomplete 24-hour or developer history is not treated as safety clearance
   assert.match(mintRiskDecision({ ...base, developer: '' }), /部署者/);
 });
 
-test('real watcher execution path blocks mint and new grant but permits a zero approval for cleanup', async () => {
-  const source = readFileSync(new URL('../watch.mjs', import.meta.url), 'utf8');
-  const start = source.indexOf('async function enforceMintRisk('), end = source.indexOf('\nasync function previewExec(', start);
+test('real execution path blocks blacklist, serial deployments and missing evidence; zero approval can clean up', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'risk-execution-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
   let submissions = 0;
-  const ctx = vm.createContext({
-    S: { depFrom: { [project]: developer }, black: { [developer]: { why: 'known rug' } } },
-    mintRiskDecision, isSerial: () => false, codeOf: async () => '0x6001', fullCode: async () => '0x6001',
-    WALLET_LEASE: { run: async (_wallet, fn) => fn() }, RECOVERY: { get: () => null },
-    PROJECT_BUDGET: { pendingEntries: () => [], max: 1_200_000n }, INFLIGHT: 0, FORCE: new Set(),
-    contractPrincipal: async () => ({ project, ceiling: 0n }), mintMetadata: () => ({ kind: 'permission' }),
-    adoptConfirmed: async () => {}, recordFeeReceipt: async () => {}, rpc: async () => {}, sleep: async () => {},
-    executeGuarded: async () => { submissions++; return { result: { j: { data: { txHash: '0x' + 'a'.repeat(64) } } }, receipt: {} }; },
+  const txHash = '0x' + 'a'.repeat(64), values = createChainValues({});
+  const S = { tokens: {}, depFrom: { [project]: developer }, black: { [developer]: { why: 'known rug' } } };
+  const CONFIG = { timeZone: 'Asia/Shanghai' };
+  const risk = createProjectRisk({ ...values, S, CONFIG, codeOf: async () => '0x6001', fullCode: async () => '0x6001', RISK: {} });
+  const tx = createTransactions({ ...values, S, CONFIG, STATE: join(dir, 'state.json'),
+    PROJECT_BUDGET: new ProjectBudget(join(dir, 'budget.json'), 1200000n), RECOVERY: new RecoveryJournal(join(dir, 'recovery.json')), WALLET_LEASE: new WalletLease(),
+    activity: new Activity(), FORCE: new Set([project]), enforceMintRisk: risk.enforceMintRisk,
+    wallet: { call: async () => { submissions++; return { j: { data: { txHash } } }; } },
+    sleep: async () => {}, rpc: async (method, params) => {
+      if (method === 'eth_getBlockByNumber') return { number: params[0], timestamp: '0x69000000' };
+      if (method === 'eth_getTransactionReceipt') return { transactionHash: txHash, from: wallet, blockNumber: '0x1', status: '0x1', gasUsed: '0x5208', effectiveGasPrice: '0x1', logs: [] };
+      throw new Error('Unexpected RPC ' + method);
+    },
   });
-  vm.runInContext(source.slice(start, end) + '\nglobalThis.entry = submitContract;', ctx);
-  const W = { addr: wallet, name: 'test.ai', baw: async () => {} };
-  await assert.rejects(ctx.entry(W, project, '0x12345678', 0n, 'id', {}), /黑名單/);
-  const grant = '0x095ea7b3' + project.slice(2).padStart(64, '0') + '1'.padStart(64, '0');
-  const revoke = '0x095ea7b3' + project.slice(2).padStart(64, '0') + '0'.repeat(64);
-  await assert.rejects(ctx.entry(W, '0x' + '4'.repeat(40), grant, 0n, 'id', {}), /黑名單/);
+  const W = { addr: wallet, name: 'test.ai' };
+  const grant = '0x095ea7b3' + values.wa(project) + values.w(1n), revoke = '0x095ea7b3' + values.wa(project) + values.w(0n);
+  await assert.rejects(tx.submitContract(W, project, '0x12345678', 0n, 'id', {}), /黑名單/);
+  await assert.rejects(tx.submitContract(W, values.USDT, grant, 0n, 'id', {}), /黑名單/);
+  S.black = {}; risk.noteDeploy('0x6001'); risk.noteDeploy('0x6001'); risk.noteDeploy('0x6001');
+  await assert.rejects(tx.submitContract(W, project, '0x12345678', 0n, 'id', {}), /部署至少三次/);
+  S.fps = {};
+  await assert.rejects(tx.submitContract(W, project, '0x12345678', 0n, 'id', {}), /24 小時/);
   assert.equal(submissions, 0);
-  // Exercise the actual watcher's 24-hour deployment counter, not a mock.
-  const counterStart = source.indexOf('function codePrint('), counterEnd = source.indexOf('\n// ---------- 第三層', counterStart);
-  vm.runInContext(source.slice(counterStart, counterEnd), ctx);
-  ctx.S.black = {}; ctx.S.fps = { '4:60016001': [Date.now(), Date.now(), Date.now()] };
-  await assert.rejects(ctx.entry(W, project, '0x12345678', 0n, 'id', {}), /部署至少三次/);
-  assert.equal(submissions, 0);
-  await ctx.entry(W, '0x' + '4'.repeat(40), revoke, 0n, 'id', {});
+  await tx.submitContract(W, values.USDT, revoke, 0n, 'id', { balanceChanges: [] });
   assert.equal(submissions, 1);
 });

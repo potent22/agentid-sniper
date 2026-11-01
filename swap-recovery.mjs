@@ -1,4 +1,5 @@
 import { waitForReceipt } from './transaction-receipt.mjs';
+import { NotSubmittedError } from './src/domain/errors.mjs';
 
 export async function waitForOrder(orderId, { lookup, rpc, sleep, attempts = 30, recordReceipt = async () => {} }) {
   if (typeof orderId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(orderId)) throw new Error('結果不明：缺少有效兌換訂單編號');
@@ -32,7 +33,10 @@ export async function guardedSwap({ journal, lease, wallet, args, metadata = { p
     journal.begin(wallet, { kind: 'swap', args, metadata, phase: 'prepared', fromBlock: await getBlock() });
     let response;
     try { response = await submit(args); }
-    catch { throw new Error('結果不明：兌換送出異常，錢包已暫停'); }
+    catch (error) {
+      if (error instanceof NotSubmittedError) { journal.clear(wallet); throw error; }
+      throw new Error('結果不明：兌換送出異常，錢包已暫停');
+    }
     const orderId = response?.j?.data?.orderId;
     if (typeof orderId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(orderId)) throw new Error('結果不明：兌換未取得訂單編號，錢包已暫停');
     journal.update(wallet, { phase: 'submitted', orderId });

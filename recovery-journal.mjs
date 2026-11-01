@@ -1,6 +1,7 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
 
 export class RecoveryJournal {
   constructor(path) { this.path = path; }
@@ -29,7 +30,7 @@ export class RecoveryJournal {
   begin(wallet, job) {
     wallet = wallet.toLowerCase();
     if (!/^0x[0-9a-f]{40}$/.test(wallet) || !['approval', 'swap'].includes(job.kind)) throw new Error('invalid recovery identity');
-    this.mutate((jobs) => { if (jobs[wallet]) throw new Error('結果不明：錢包有待恢復操作，禁止新交易'); jobs[wallet] = job; });
+    this.mutate((jobs) => { if (jobs[wallet]) throw new Error('結果不明：錢包有待恢復操作，禁止新交易'); jobs[wallet] = { ...job, operationId: randomUUID() }; });
   }
   update(wallet, patch) {
     this.mutate((jobs) => { if (!jobs[wallet.toLowerCase()]) throw new Error('recovery job missing'); Object.assign(jobs[wallet.toLowerCase()], patch); });
