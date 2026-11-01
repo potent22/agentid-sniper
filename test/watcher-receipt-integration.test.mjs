@@ -51,9 +51,9 @@ async function run(receipts, { value = 0n, entry = 'previewExec' } = {}) {
     return { j: { success: true, data: { txHash: tx } } };
   } };
   ctx.wallet = { call: (_address, args) => W.baw(args) };
-  const rebuild = () => { ctx.api = createTransactions(ctx); };
+  const rebuild = () => { ctx.api = createTransactions({ ...ctx, walletLimit: async () => 10 }); };
   rebuild();
-  ctx.entry = entry === 'autoMint' ? createMinting({ ...ctx, ...ctx.api }).autoMint : ctx.api.previewExec;
+  ctx.entry = entry === 'autoMint' ? createMinting({ ...ctx, ...ctx.api, walletLimit: async () => 10 }).autoMint : ctx.api.previewExec;
 
   try {
     const result = entry === 'autoMint' ? await ctx.entry(address, 'mint', { ...W, name: 'test.ai' }, value) : await ctx.entry(W, address, '0x', value, () => '');

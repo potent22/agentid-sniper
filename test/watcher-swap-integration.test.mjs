@@ -45,7 +45,7 @@ function fixture(t, sale = false) {
     return { j: { success: true, data: { list: [{ ...order, status: state, txHash: state === 'FAILED' ? null : txHash }] } } };
   } };
   ctx.wallet = { call: (_address, args) => W.baw(args) };
-  const rebuild = () => { ctx.api = createTransactions(ctx); };
+  const rebuild = () => { ctx.api = createTransactions({ ...ctx, walletLimit: async () => 10 }); };
   rebuild();
 
   const args = ['market-order', 'swap', '--fromToken', order.fromToken, '--toToken', order.toToken, '--binanceChainId', '56', '--fromTokenQty', '0.004'];

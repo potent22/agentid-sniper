@@ -48,3 +48,5 @@ flowchart TD
 扫描和策略仍有上游的启发式逻辑，并共享部分兼容状态 `S`；不是所有状态都已改成领域事件。RPC 的公共节点回退、报价、候选识别的准确性没有因拆分而提高。未来阶段再统一证据对象、跨合约项目身份、事务存储及真实脱敏回放语料。
 
 Rust 尚未实现。替换时以合约意图、金额字符串、操作状态和离线恢复场景为对照，先替换交易核心，不整体重写扫描与通知。
+
+Selected upstream integrations add `payment-rules.mjs` (paid limit getters), `social.mjs` (optional read-only discovery) and `public-web.mjs` (bounded public HTTPS retrieval). See `docs/upstream-picks.md`.

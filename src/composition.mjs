@@ -1,3 +1,4 @@
+import { createPaymentRules } from './modules/payment-rules.mjs';
 import { createChainValues } from './modules/chain-values.mjs';
 import { createConfiguration } from './modules/configuration.mjs';
 import { createRpc } from './modules/rpc.mjs';
@@ -34,15 +35,16 @@ export function composeModules(base) {
     }
   };
   wire(createChainValues, []);
-  wire(createConfiguration, ["CONFIG","configuredBudget"]);
+  wire(createConfiguration, ["CONFIG","configuredBudget","S","save"]);
   wire(createRpc, ["CONFIG","fetchImpl"]);
   wire(createContracts, ["REGISTRY","S","T_TRANSFER","USDT","WALLETS","WBNB","big","call","log","logsRpc","rpc","w","wa"]);
-  wire(createMarketData, ["FACTORY","ROUTER","T_SWAP","T_TRANSFER","USD1","USDT","WBNB","call","cc","rpc","w","wa","fetchImpl"]);
+  wire(createPaymentRules, ["call","codeOf","fullCode","keccakHex"]);
+  wire(createMarketData, ["S","tg","FACTORY","ROUTER","T_SWAP","T_TRANSFER","USD1","USDT","WBNB","call","cc","rpc","w","wa","fetchImpl"]);
   wire(createProjectRisk, ["CONFIG","FACTORY","FLAP_BAN","FLAP_BLOCK","PAID","RISK","S","USDT","WALLETS","WBNB","big","call","codeOf","fullCode","log","rpc","tg","tokStr","ts","w","wa"]);
   wire(createNotifications, ["CONFIG","S","WALLETS","deployerOf","lockNote","log","riskNote","sleep","ts","fetchImpl"]);
-  wire(createDiscovery, ["activity","CANDS","INFRA","ME","NEAR_FREE","REGISTRY","RPCS","S","T_TRANSFER","WALLETS","badSel","call","findFree","fullCode","heatTier","keccakHex","learnReplay","log","logsRpc","noteDeploy","noteDev","queueMint","rpc","rpcBatch","scheduler","tg","tokStr","ts","wa","fetchImpl"]);
-  wire(createMinting, ["activity","AG_MIN","CANDS","CONFIG","FACTORY","FORCE","GO_PCT","HOT","INFRA","NATIVE_BNB","PAID","REFUND_SELS","S","T_TRANSFER","USDT","WALLETS","WBNB","approvedMint","badSel","big","bnbUsd","call","cc","codeOf","deployerOf","enforceMintRisk","findCapSel","findFree","fitShares","flapGuard","fpCache","freeProgress","freshDeadline","freshWallet","fullCode","groupProgress","isRepeatDev","isSerial","learnReplay","log","noteDev","poolOpen","poolOut","previewExec","progressOf","repeatDevOk","riskBlock","rpc","ruleTxt","safeAddrs","scaleV","serialDev","sleep","submitContract","swapConfirmed","tg","tokStr","ts","upgradeable","w","wa","wallet","defer"]);
-  wire(createTransactions, ["CONFIG","FORCE","PROJECT_BUDGET","RECOVERY","S","STATE","USDT","WALLET_LEASE","activity","bnbUsd","call","enforceMintRisk","flapGuard","riskBlock","rpc","sleep","tokStr","w","wa","wallet"]);
+  wire(createDiscovery, ["noteTransactions","activity","CANDS","INFRA","ME","NEAR_FREE","REGISTRY","RPCS","S","T_TRANSFER","WALLETS","badSel","call","findFree","fullCode","heatTier","keccakHex","learnReplay","log","logsRpc","noteDeploy","noteDev","queueMint","rpc","rpcBatch","scheduler","tg","tokStr","ts","wa","fetchImpl"]);
+  wire(createMinting, ["walletLimit","activity","AG_MIN","CANDS","CONFIG","FACTORY","FORCE","GO_PCT","HOT","INFRA","NATIVE_BNB","PAID","REFUND_SELS","S","T_TRANSFER","USDT","WALLETS","WBNB","approvedMint","badSel","big","bnbUsd","call","cc","codeOf","deployerOf","enforceMintRisk","findCapSel","findFree","fitShares","flapGuard","fpCache","freeProgress","freshDeadline","freshWallet","fullCode","groupProgress","isRepeatDev","isSerial","learnReplay","log","noteDev","poolOpen","poolOut","previewExec","progressOf","repeatDevOk","riskBlock","rpc","ruleTxt","safeAddrs","scaleV","serialDev","sleep","submitContract","swapConfirmed","tg","tokStr","ts","upgradeable","w","wa","wallet","defer"]);
+  wire(createTransactions, ["walletLimit","CONFIG","FORCE","PROJECT_BUDGET","RECOVERY","S","STATE","USDT","WALLET_LEASE","activity","bnbUsd","call","enforceMintRisk","flapGuard","riskBlock","rpc","sleep","tokStr","w","wa","wallet"]);
   wire(createPortfolio, ["LOG","ME","NATIVE_BNB","RULE","S","TOKENS","WALLETS","big","blacklist","bnbUsd","call","findPair","flow","honeypotCheck","log","rpc","ruleTxt","save","swapConfirmed","tg","tgSay","tokDec","ts","valueUsd","wa"]);
   wire(createReports, ["CONFIG","LOG","PAID","S","T_TRANSFER","UPD","USDT","WALLETS","call","cmdStats","decStrAt","groupProgress","log","rpc","save","sleep","tg","tgSay","tokStr","ts","w","wa","fetchImpl"]);
   wire(createAccount, ["revokePermission","CONFIG","FLAP_BAN","FLAP_BLOCK","S","WALLETS","tg","wallet"]);

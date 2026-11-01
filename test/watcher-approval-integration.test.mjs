@@ -44,7 +44,7 @@ async function fixture(t, { workFails = false, cleanupFails = false, stopDuringC
     return { j: { success: true, data: { txHash: hash } } };
   } };
   ctx.wallet = { call: (_address, args) => { if (args[1] === 'execute') ctx.activity.assertCanSend(); return W.baw(args); } };
-  const rebuild = () => { ctx.api = createTransactions(ctx); };
+  const rebuild = () => { ctx.api = createTransactions({ ...ctx, walletLimit: async () => 10 }); };
   rebuild();
 
   const run = () => ctx.api.approvedMint(W, token, spender, 1n * 10n ** 18n, async () => {

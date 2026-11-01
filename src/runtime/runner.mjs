@@ -43,6 +43,8 @@ export function createRunner({ services: s, activity, now = Date.now, heartbeat,
     schedule('heat', 20000, s.heatWatch);
     schedule('free-progress', 300000, s.freeProgWatch);
     if (now() - (s.S.nftVolAt || 0) > 12 * 3600000) schedule('nft', 12 * 3600000, async () => { s.S.nftVolAt = now(); await s.nftVolWatch(); });
+    if (s.socialPoll) schedule('social', 60000, s.socialPoll);
+    if (s.inscriptionPoll) schedule('inscriptions', 20000, s.inscriptionPoll);
     schedule('login', 600000, s.loginCheck);
     schedule('hold-report', 60000, async () => {
       const local = new Date(now() + 8 * 3600000), hour = local.getUTCHours(), key = local.toISOString().slice(0, 10) + '-' + hour;

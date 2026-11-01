@@ -1,3 +1,4 @@
+import { createSocial } from './modules/social.mjs';
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { loadConfig, validateConfig } from './domain/config.mjs';
@@ -43,11 +44,14 @@ export function createApplication({ root, config, initialize = false, migrateLeg
       const timer = setTimeout(() => { timers.delete(timer); if (!activity.stopping) activity.track(Promise.resolve().then(fn).catch((e) => log('Deferred: ' + e.message))); }, ms);
       timers.add(timer);
     };
+    let social;
     const services = composeModules({ CONFIG, configuredBudget: CONFIG.paid.maxUsd, DIR: root, LOG, STATE: store.statePath,
       PROJECT_BUDGET: store.budget, RECOVERY: store.recovery, WALLET_LEASE: new WalletLease(),
       S: store.state, save: store.save, log, ts, sleep, WALLETS, ME: WALLETS[0].addr,
-      activity, scheduler: {}, wallet, walletRead: walletView(wallet), walletSession: walletView(wallet, { authentication: true }),
+      noteTransactions: txs => social?.noteTransactions(txs), activity, scheduler: {}, wallet, walletRead: walletView(wallet), walletSession: walletView(wallet, { authentication: true }),
       fetchImpl: controlledFetch, defer, UPD: { on: false, ver: '2.6.2-modular', repo: 'potent22/agentid-sniper' } });
+    social = createSocial({ ...services });
+    services.socialPoll = social.socialPoll; services.inscriptionPoll = social.inscriptionPoll;
     const heartbeat = () => writeFileSync(join(dataRoot, 'watch_heartbeat.txt'), `${ts()} scanLag=${services.S.scanLag ?? '?'} active=${activity.count} stopping=${activity.stopping}\n`);
     const runner = createRunner({ services, activity, now, sleep, heartbeat, stopped: () => existsSync(join(root, 'WATCH_STOP')) });
     let running, stopPromise, watchdog;
@@ -62,6 +66,7 @@ export function createApplication({ root, config, initialize = false, migrateLeg
         const deadline = now() + 240000;
         while (activity.count > 0 && now() < deadline) await delay(100);
         controller.abort(new Error('Application stopped'));
+        await social.close();
         const drained = await activity.drain({ sleep: delay, timeoutMs: 10000, now });
         if (running) await Promise.race([running, delay(1000)]);
         store.save(); heartbeat();

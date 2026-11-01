@@ -8,7 +8,8 @@
   "telegram": {
     "botToken": "",
     "chatId": "",
-    "groupChatId": ""
+    "groupChatId": "",
+    "monitorGroups": false
   },
   "timeZone": "Asia/Taipei",
   "paid": {

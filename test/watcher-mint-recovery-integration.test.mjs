@@ -42,7 +42,7 @@ function fixture(t) {
     assert.equal(args[1], 'execute'); sends++; return { j: { success: true, data: { txHash } } };
   } };
   ctx.wallet = { call: (_address, args) => W.baw(args) };
-  const rebuild = () => { ctx.api = createTransactions(ctx); };
+  const rebuild = () => { ctx.api = createTransactions({ ...ctx, walletLimit: async () => 10 }); };
   rebuild();
 
   return { run: () => ctx.api.previewExec(W, project, '0x12345678', 1_000_000_000_000_000n, () => ''),
