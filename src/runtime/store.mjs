@@ -26,7 +26,10 @@ export function inspectStore(dataRoot, config, { initialize = false, migrateLega
   const budget = new ProjectBudget(paths.project_budget, BigInt(Math.floor(config.paid.maxUsd * 1e6)));
   const recovery = new RecoveryJournal(paths.recovery);
   const budgetData = budget.read(), recoveryData = recovery.read();
-  if (!existsSync(paths.project_budget) && (Object.keys(state.mintExecutions || {}).length || Object.keys(state.paidSpend || {}).length || (state.dyn || []).some((t) => t.cost > 0))) throw new Error('Budget missing despite historical principal records');
+  const legacySpend = Object.entries(state.paidSpend || {}).some(([key, value]) => key === 'day'
+    ? typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)
+    : typeof value !== 'number' || !Number.isFinite(value) || value !== 0);
+  if (!existsSync(paths.project_budget) && (Object.keys(state.mintExecutions || {}).length || legacySpend || (state.dyn || []).some((t) => t.cost > 0))) throw new Error('Budget missing despite historical principal records');
   if (!existsSync(paths.recovery) && Object.values(budgetData.projects).some((p) => p.pending)) throw new Error('Recovery journal missing with unresolved contract operations');
   for (const entry of Object.values(state.tokens)) delete entry.verified;
   return { paths, identity, manifestExists, state, budget, recovery, budgetData, recoveryData };

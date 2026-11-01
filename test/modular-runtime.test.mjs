@@ -157,6 +157,22 @@ test('legacy-format migration and code rollback preserve the latest amounts and 
   assert.deepEqual(next.status().operations, []); await next.stop();
 });
 
+test('legacy daily date metadata is not principal; positive or unknown spend still blocks a missing budget', async (t) => {
+  for (const amount of [undefined, 0, 0.001, null, 'unknown']) {
+    const root = temporary(t), data = join(root, 'data'); mkdirSync(data);
+    const state = { tokens: {}, paidSpend: { day: '2026-11-01', ...(amount === undefined ? {} : { 'test.ai': amount }) },
+      appliedExecutions: { 'funding:historical-topup': txHash } };
+    writeFileSync(join(data, 'watch_state.json'), JSON.stringify(state));
+    writeFileSync(join(data, 'recovery.json'), JSON.stringify({ version: 1, wallets: {} }));
+    const options = { root, config: configuration(), migrateLegacy: true, fetchImpl: forbidden, executeFile: forbidden };
+    if (amount !== undefined && amount !== 0) { assert.throws(() => createApplication(options), /Budget missing/); continue; }
+    const app = createApplication(options);
+    assert.deepEqual(app.services.PROJECT_BUDGET.read().projects, {});
+    assert.deepEqual(app.services.S.appliedExecutions, state.appliedExecutions);
+    assert.deepEqual(app.services.S.paidSpend, state.paidSpend); await app.stop();
+  }
+});
+
 test('composed app scans and shuts down using only fake RPC and wallet queries', { timeout: 5000 }, async (t) => {
   const root = temporary(t), calls = [];
   const app = createApplication({ root, config: configuration(), initialize: true,
